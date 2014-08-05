@@ -429,9 +429,6 @@ out:
 
 void au_pin_hdir_set_owner(struct au_pin *p, struct task_struct *task)
 {
-#if defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_SMP)
-	p->hdir->hi_inode->i_mutex.owner = task;
-#endif
 }
 
 void au_pin_hdir_acquire_nest(struct au_pin *p)
