@@ -120,15 +120,9 @@ spidev_sync(struct spidev_data *spidev, struct spi_message *message)
 	if (spidev->spi == NULL)
 		status = -ESHUTDOWN;
 	else
-		status = spi_async(spidev->spi, message);
+		status = spi_sync(spidev->spi, message);
 	spin_unlock_irq(&spidev->spi_lock);
 
-	if (status == 0) {
-		wait_for_completion(&done);
-		status = message->status;
-		if (status == 0)
-			status = message->actual_length;
-	}
 	return status;
 }
 
