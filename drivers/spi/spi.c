@@ -664,9 +664,17 @@ void spi_finalize_current_message(struct spi_master *master)
 	struct spi_message *mesg;
 	unsigned long flags;
 
+        if(!master->cur_msg)
+                return;
+
 	spin_lock_irqsave(&master->queue_lock, flags);
 	mesg = master->cur_msg;
 	master->cur_msg = NULL;
+
+        if(!mesg) {
+                spin_unlock_irqrestore(&master->queue_lock, flags);
+                return;
+        }
 
 	queue_kthread_work(&master->kworker, &master->pump_messages);
 	spin_unlock_irqrestore(&master->queue_lock, flags);
@@ -1490,24 +1498,26 @@ static int __spi_sync(struct spi_device *spi, struct spi_message *message,
 		      int bus_locked)
 {
 	DECLARE_COMPLETION_ONSTACK(done);
-	int status;
+	int status = 0;
 	struct spi_master *master = spi->master;
 
 	message->complete = spi_complete;
 	message->context = &done;
+	message->spi = spi;
 
 	if (!bus_locked)
 		mutex_lock(&master->bus_lock_mutex);
 
-	status = spi_async_locked(spi, message);
+        if(master->prepare_transfer_hardware)
+            status = master->prepare_transfer_hardware(master);
+        if(status >= 0)
+            status = master->transfer_one_message(master, message);
+        if(status >= 0 && master->unprepare_transfer_hardware)
+            status = master->unprepare_transfer_hardware(master);
 
 	if (!bus_locked)
 		mutex_unlock(&master->bus_lock_mutex);
 
-	if (status == 0) {
-		wait_for_completion(&done);
-		status = message->status;
-	}
 	message->context = NULL;
 	return status;
 }
