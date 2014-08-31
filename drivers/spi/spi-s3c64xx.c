@@ -797,10 +797,6 @@ static int s3c64xx_spi_prepare_transfer(struct spi_master *spi)
 {
 	struct s3c64xx_spi_driver_data *sdd = spi_master_get_devdata(spi);
 
-	/* Acquire DMA channels */
-	while (!acquire_dma(sdd))
-		msleep(10);
-
 	pm_runtime_get_sync(&sdd->pdev->dev);
 
 	return 0;
@@ -809,10 +805,6 @@ static int s3c64xx_spi_prepare_transfer(struct spi_master *spi)
 static int s3c64xx_spi_unprepare_transfer(struct spi_master *spi)
 {
 	struct s3c64xx_spi_driver_data *sdd = spi_master_get_devdata(spi);
-
-	/* Free DMA channels */
-	sdd->ops->release(sdd->rx_dma.ch, &s3c64xx_spi_dma_client);
-	sdd->ops->release(sdd->tx_dma.ch, &s3c64xx_spi_dma_client);
 
 	pm_runtime_put(&sdd->pdev->dev);
 
@@ -1344,6 +1336,9 @@ static int __init s3c64xx_spi_probe(struct platform_device *pdev)
 		goto err7;
 	}
 
+        // cannot fail(?)
+	acquire_dma(sdd);
+
 	writel(S3C64XX_SPI_INT_RX_OVERRUN_EN | S3C64XX_SPI_INT_RX_UNDERRUN_EN |
 	       S3C64XX_SPI_INT_TX_OVERRUN_EN | S3C64XX_SPI_INT_TX_UNDERRUN_EN,
 	       sdd->regs + S3C64XX_SPI_INT_EN);
@@ -1395,6 +1390,10 @@ static int s3c64xx_spi_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 
 	spi_unregister_master(master);
+
+	/* Free DMA channels */
+	sdd->ops->release(sdd->rx_dma.ch, &s3c64xx_spi_dma_client);
+	sdd->ops->release(sdd->tx_dma.ch, &s3c64xx_spi_dma_client);
 
 	writel(0, sdd->regs + S3C64XX_SPI_INT_EN);
 
